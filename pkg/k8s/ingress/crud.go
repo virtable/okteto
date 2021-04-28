@@ -21,6 +21,14 @@ func Create(ctx context.Context, i *extensions.Ingress, c kubernetes.Interface) 
 	return nil
 }
 
+func Get(ctx context.Context, name, namespace string, c kubernetes.Interface) (*extensions.Ingress, error) {
+	i, err := c.ExtensionsV1beta1().Ingresses(namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return i, nil
+}
+
 //List returns the list of deployments
 func List(ctx context.Context, namespace, labels string, c kubernetes.Interface) ([]extensions.Ingress, error) {
 	iList, err := c.ExtensionsV1beta1().Ingresses(namespace).List(

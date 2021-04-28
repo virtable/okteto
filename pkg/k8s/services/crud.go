@@ -48,7 +48,7 @@ func CreateDev(ctx context.Context, dev *model.Dev, c *kubernetes.Clientset) err
 
 //Create creates a k8s service
 func Create(ctx context.Context, s *apiv1.Service, c *kubernetes.Clientset) error {
-	old, err := Get(ctx, s.Namespace, s.Name, c)
+	old, err := Get(ctx, s.Name, s.Namespace, c)
 	if err != nil && !strings.Contains(err.Error(), "not found") {
 		return fmt.Errorf("error getting kubernetes service: %s", err)
 	}
@@ -96,7 +96,7 @@ func Destroy(ctx context.Context, name, namespace string, c *kubernetes.Clientse
 }
 
 // Get returns a kubernetes service by the name, or an error if it doesn't exist
-func Get(ctx context.Context, namespace, name string, c kubernetes.Interface) (*apiv1.Service, error) {
+func Get(ctx context.Context, name, namespace string, c kubernetes.Interface) (*apiv1.Service, error) {
 	return c.CoreV1().Services(namespace).Get(ctx, name, metav1.GetOptions{})
 }
 

@@ -16,6 +16,7 @@ package cmd
 import (
 	"context"
 
+	"github.com/okteto/okteto/cmd/divert"
 	"github.com/okteto/okteto/cmd/namespace"
 	"github.com/spf13/cobra"
 )
@@ -27,5 +28,6 @@ func Delete(ctx context.Context) *cobra.Command {
 		Short: "Deletes resources",
 	}
 	cmd.AddCommand(namespace.Delete(ctx))
+	cmd.AddCommand(divert.Delete(ctx))
 	return cmd
 }

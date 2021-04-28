@@ -37,7 +37,6 @@ import (
 	"github.com/okteto/okteto/pkg/okteto"
 	"github.com/okteto/okteto/pkg/registry"
 	"github.com/okteto/okteto/pkg/ssh"
-
 	"github.com/okteto/okteto/pkg/syncthing"
 
 	"github.com/spf13/cobra"
@@ -56,97 +55,12 @@ func Up() *cobra.Command {
 	var autoDeploy bool
 	var build bool
 	var forcePull bool
-	var resetSyncthing bool
+	var reset bool
 	cmd := &cobra.Command{
 		Use:   "up",
 		Short: "Activates your development container",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			if okteto.InDevContainer() {
-				return errors.ErrNotInDevContainer
-			}
-
-			u := upgradeAvailable()
-			if len(u) > 0 {
-				warningFolder := filepath.Join(config.GetOktetoHome(), ".warnings")
-				if utils.GetWarningState(warningFolder, "version") != u {
-					log.Yellow("Okteto %s is available. To upgrade:", u)
-					log.Yellow("    %s", getUpgradeCommand())
-					if err := utils.SetWarningState(warningFolder, "version", u); err != nil {
-						log.Infof("failed to set warning version state: %s", err.Error())
-					}
-				}
-			}
-
-			if syncthing.ShouldUpgrade() {
-				fmt.Println("Installing dependencies...")
-				if err := downloadSyncthing(); err != nil {
-					log.Infof("failed to upgrade syncthing: %s", err)
-
-					if !syncthing.IsInstalled() {
-						return fmt.Errorf("couldn't download syncthing, please try again")
-					}
-
-					log.Yellow("couldn't upgrade syncthing, will try again later")
-					fmt.Println()
-				} else {
-					log.Success("Dependencies successfully installed")
-				}
-			}
-
-			checkLocalWatchesConfiguration()
-
-			if autoDeploy {
-				log.Warning(`The 'deploy' flag is deprecated and will be removed in a future release.
-    Set the 'autocreate' field in your okteto manifest to get the same behavior.
-    More information is available here: https://okteto.com/docs/reference/cli#up`)
-			}
-
-			ctx := context.Background()
-			if err := utils.LoadEnvironment(ctx, false); err != nil {
-				return err
-			}
-
-			dev, err := loadDevOrInit(namespace, k8sContext, devPath)
-			if err != nil {
-				return err
-			}
-
-			if err := loadDevOverrides(dev, forcePull, remote, autoDeploy); err != nil {
-				return err
-			}
-
-			log.ConfigureFileLogger(config.GetDeploymentHome(dev.Namespace, dev.Name), config.VersionString)
-
-			if err := checkStignoreConfiguration(dev); err != nil {
-				log.Infof("failed to check '.stignore' configuration: %s", err.Error())
-			}
-
-			if err := addStignoreSecrets(dev); err != nil {
-				return err
-			}
-
-			if _, ok := os.LookupEnv("OKTETO_AUTODEPLOY"); ok {
-				autoDeploy = true
-			}
-
-			up := &upContext{
-				Dev:            dev,
-				Exit:           make(chan error, 1),
-				resetSyncthing: resetSyncthing,
-			}
-			up.inFd, up.isTerm = term.GetFdInfo(os.Stdin)
-			if up.isTerm {
-				var err error
-				up.stateTerm, err = term.SaveState(up.inFd)
-				if err != nil {
-					log.Infof("failed to save the state of the terminal: %s", err.Error())
-					return fmt.Errorf("failed to save the state of the terminal")
-				}
-			}
-
-			err = up.start(autoDeploy, build)
-			return err
+			return ExecuteUp(devPath, namespace, k8sContext, remote, autoDeploy, build, forcePull, reset)
 		},
 	}
 
@@ -158,8 +72,96 @@ func Up() *cobra.Command {
 	cmd.Flags().MarkHidden("deploy")
 	cmd.Flags().BoolVarP(&build, "build", "", false, "build on-the-fly the dev image using the info provided by the 'build' okteto manifest field")
 	cmd.Flags().BoolVarP(&forcePull, "pull", "", false, "force dev image pull")
-	cmd.Flags().BoolVarP(&resetSyncthing, "reset", "", false, "reset the file synchronization database")
+	cmd.Flags().BoolVarP(&reset, "reset", "", false, "reset the file synchronization database")
 	return cmd
+}
+
+func ExecuteUp(devPath, namespace, k8sContext string, remote int, autoDeploy, build, forcePull, reset bool) error {
+	if okteto.InDevContainer() {
+		return errors.ErrNotInDevContainer
+	}
+
+	u := upgradeAvailable()
+	if len(u) > 0 {
+		warningFolder := filepath.Join(config.GetOktetoHome(), ".warnings")
+		if utils.GetWarningState(warningFolder, "version") != u {
+			log.Yellow("Okteto %s is available. To upgrade:", u)
+			log.Yellow("    %s", getUpgradeCommand())
+			if err := utils.SetWarningState(warningFolder, "version", u); err != nil {
+				log.Infof("failed to set warning version state: %s", err.Error())
+			}
+		}
+	}
+
+	if syncthing.ShouldUpgrade() {
+		fmt.Println("Installing dependencies...")
+		if err := downloadSyncthing(); err != nil {
+			log.Infof("failed to upgrade syncthing: %s", err)
+
+			if !syncthing.IsInstalled() {
+				return fmt.Errorf("couldn't download syncthing, please try again")
+			}
+
+			log.Yellow("couldn't upgrade syncthing, will try again later")
+			fmt.Println()
+		} else {
+			log.Success("Dependencies successfully installed")
+		}
+	}
+
+	checkLocalWatchesConfiguration()
+
+	if autoDeploy {
+		log.Warning(`The 'deploy' flag is deprecated and will be removed in a future release.
+Set the 'autocreate' field in your okteto manifest to get the same behavior.
+More information is available here: https://okteto.com/docs/reference/cli#up`)
+	}
+
+	ctx := context.Background()
+	if err := utils.LoadEnvironment(ctx, false); err != nil {
+		return err
+	}
+
+	dev, err := loadDevOrInit(namespace, k8sContext, devPath)
+	if err != nil {
+		return err
+	}
+
+	if err := loadDevOverrides(dev, forcePull, remote, autoDeploy); err != nil {
+		return err
+	}
+
+	log.ConfigureFileLogger(config.GetDeploymentHome(dev.Namespace, dev.Name), config.VersionString)
+
+	if err := checkStignoreConfiguration(dev); err != nil {
+		log.Infof("failed to check '.stignore' configuration: %s", err.Error())
+	}
+
+	if err := addStignoreSecrets(dev); err != nil {
+		return err
+	}
+
+	if _, ok := os.LookupEnv("OKTETO_AUTODEPLOY"); ok {
+		autoDeploy = true
+	}
+
+	up := &upContext{
+		Dev:            dev,
+		Exit:           make(chan error, 1),
+		resetSyncthing: reset,
+	}
+	up.inFd, up.isTerm = term.GetFdInfo(os.Stdin)
+	if up.isTerm {
+		var err error
+		up.stateTerm, err = term.SaveState(up.inFd)
+		if err != nil {
+			log.Infof("failed to save the state of the terminal: %s", err.Error())
+			return fmt.Errorf("failed to save the state of the terminal")
+		}
+	}
+
+	err = up.start(autoDeploy, build)
+	return err
 }
 
 func loadDevOrInit(namespace, k8sContext, devPath string) (*model.Dev, error) {

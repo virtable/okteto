@@ -152,6 +152,7 @@ type Dev struct {
 	PersistentVolumeInfo *PersistentVolumeInfo `json:"persistentVolume,omitempty" yaml:"persistentVolume,omitempty"`
 	InitContainer        InitContainer         `json:"initContainer,omitempty" yaml:"initContainer,omitempty"`
 	Timeout              time.Duration         `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Divert               *Divert               `json:"divert,omitempty" yaml:"divert,omitempty"`
 }
 
 //Entrypoint represents the start command of a development container
@@ -270,6 +271,13 @@ type Probes struct {
 type Lifecycle struct {
 	PostStart bool `json:"postStart,omitempty" yaml:"postStart,omitempty"`
 	PostStop  bool `json:"postStop,omitempty" yaml:"postStop,omitempty"`
+}
+
+// Divert defines how to divert a given service
+type Divert struct {
+	Ingress string `yaml:"ingress,omitempty"`
+	Service string `yaml:"service,omitempty"`
+	Port    int    `yaml:"port,omitempty"`
 }
 
 // ResourceList is a set of (resource name, quantity) pairs.

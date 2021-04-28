@@ -54,6 +54,8 @@ const (
 	namespaceEvent           = "Namespace"
 	namespaceCreateEvent     = "CreateNamespace"
 	namespaceDeleteEvent     = "DeleteNamespace"
+	divertCreateEvent        = "Create Divert"
+	divertDeleteEvent        = "Delete Divert"
 	execEvent                = "Exec"
 	signupEvent              = "Signup"
 	disableEvent             = "Disable Analytics"
@@ -111,6 +113,16 @@ func TrackCreateNamespace(success bool) {
 // TrackDeleteNamespace sends a tracking event to mixpanel when the user deletes a namespace
 func TrackDeleteNamespace(success bool) {
 	track(namespaceDeleteEvent, success, nil)
+}
+
+// TrackCreateDivert sends a tracking event to mixpanel when a user creates a divert
+func TrackCreateDivert(success bool) {
+	track(divertCreateEvent, success, nil)
+}
+
+// TrackDeleteDivert sends a tracking event to mixpanel when the user deletes a divert
+func TrackDeleteDivert(success bool) {
+	track(divertDeleteEvent, success, nil)
 }
 
 // TrackReconnect sends a tracking event to mixpanel when the development container reconnect
