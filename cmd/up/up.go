@@ -29,8 +29,9 @@ import (
 	buildCMD "github.com/okteto/okteto/pkg/cmd/build"
 	"github.com/okteto/okteto/pkg/config"
 	"github.com/okteto/okteto/pkg/errors"
-	k8Client "github.com/okteto/okteto/pkg/k8s/client"
+	k8sClient "github.com/okteto/okteto/pkg/k8s/client"
 	"github.com/okteto/okteto/pkg/k8s/deployments"
+	"github.com/okteto/okteto/pkg/k8s/diverts"
 	"github.com/okteto/okteto/pkg/k8s/namespaces"
 	"github.com/okteto/okteto/pkg/log"
 	"github.com/okteto/okteto/pkg/model"
@@ -160,6 +161,16 @@ More information is available here: https://okteto.com/docs/reference/cli#up`)
 		}
 	}
 
+	up.Client, up.RestConfig, err = k8sClient.GetLocalWithContext(up.Dev.Context)
+	if err != nil {
+		kubecfg := config.GetKubeConfigFile()
+		log.Infof("failed to load local Kubeconfig: %s", err)
+		if up.Dev.Context == "" {
+			return fmt.Errorf("failed to load your local Kubeconfig %q", kubecfg)
+		}
+		return fmt.Errorf("failed to load your local Kubeconfig: %q context not found in %q", up.Dev.Context, kubecfg)
+	}
+
 	err = up.start(autoDeploy, build)
 	return err
 }
@@ -215,18 +226,6 @@ func loadDevOverrides(dev *model.Dev, forcePull bool, remote int, autoDeploy boo
 
 func (up *upContext) start(autoDeploy, build bool) error {
 
-	var err error
-
-	up.Client, up.RestConfig, err = k8Client.GetLocalWithContext(up.Dev.Context)
-	if err != nil {
-		kubecfg := config.GetKubeConfigFile()
-		log.Infof("failed to load local Kubeconfig: %s", err)
-		if up.Dev.Context == "" {
-			return fmt.Errorf("failed to load your local Kubeconfig %q", kubecfg)
-		}
-		return fmt.Errorf("failed to load your local Kubeconfig: %q context not found in %q", up.Dev.Context, kubecfg)
-	}
-
 	ctx := context.Background()
 	ns, err := namespaces.Get(ctx, up.Dev.Namespace, up.Client)
 	if err != nil {
@@ -238,6 +237,10 @@ func (up *upContext) start(autoDeploy, build bool) error {
 	}
 
 	up.isOktetoNamespace = namespaces.IsOktetoNamespace(ns)
+
+	if err := diverts.Create(ctx, up.Dev, up.Client); err != nil {
+		return err
+	}
 
 	if err := createPIDFile(up.Dev.Namespace, up.Dev.Name); err != nil {
 		log.Infof("failed to create pid file for %s - %s: %s", up.Dev.Namespace, up.Dev.Name, err)
@@ -507,26 +510,30 @@ func (up *upContext) shutdown() {
 
 func printDisplayContext(dev *model.Dev) {
 	if dev.Context != "" {
-		log.Println(fmt.Sprintf("    %s   %s", log.BlueString("Context:"), dev.Context))
+		log.Println(fmt.Sprintf("    %s    %s", log.BlueString("Context:"), dev.Context))
 	}
-	log.Println(fmt.Sprintf("    %s %s", log.BlueString("Namespace:"), dev.Namespace))
-	log.Println(fmt.Sprintf("    %s      %s", log.BlueString("Name:"), dev.Name))
+	log.Println(fmt.Sprintf("    %s  %s", log.BlueString("Namespace:"), dev.Namespace))
+	log.Println(fmt.Sprintf("    %s       %s", log.BlueString("Name:"), dev.Name))
 
 	if len(dev.Forward) > 0 {
 		for i := 0; i < len(dev.Forward); i++ {
 			if dev.Forward[i].Service {
-				log.Println(fmt.Sprintf("               %d -> %s:%d", dev.Forward[i].Local, dev.Forward[i].ServiceName, dev.Forward[i].Remote))
+				log.Println(fmt.Sprintf("                %d -> %s:%d", dev.Forward[i].Local, dev.Forward[i].ServiceName, dev.Forward[i].Remote))
 				continue
 			}
-			log.Println(fmt.Sprintf("               %d -> %d", dev.Forward[i].Local, dev.Forward[i].Remote))
+			log.Println(fmt.Sprintf("                %d -> %d", dev.Forward[i].Local, dev.Forward[i].Remote))
 		}
 	}
 
 	if len(dev.Reverse) > 0 {
-		log.Println(fmt.Sprintf("    %s   %d <- %d", log.BlueString("Reverse:"), dev.Reverse[0].Local, dev.Reverse[0].Remote))
+		log.Println(fmt.Sprintf("    %s      %d <- %d", log.BlueString("Reverse:"), dev.Reverse[0].Local, dev.Reverse[0].Remote))
 		for i := 1; i < len(dev.Reverse); i++ {
-			log.Println(fmt.Sprintf("               %d <- %d", dev.Reverse[i].Local, dev.Reverse[i].Remote))
+			log.Println(fmt.Sprintf("                %d <- %d", dev.Reverse[i].Local, dev.Reverse[i].Remote))
 		}
+	}
+
+	if dev.Divert != nil {
+		log.Println(fmt.Sprintf("    %s %s", log.BlueString("Divert URL:"), "https://pchico83-client-api-staging.pablo.dev.okteto.net/"))
 	}
 	fmt.Println()
 }

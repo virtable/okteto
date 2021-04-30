@@ -16,7 +16,6 @@ package cmd
 import (
 	"context"
 
-	"github.com/okteto/okteto/cmd/divert"
 	"github.com/okteto/okteto/cmd/namespace"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +27,5 @@ func Create(ctx context.Context) *cobra.Command {
 		Short: "Creates resources",
 	}
 	cmd.AddCommand(namespace.Create(ctx))
-	cmd.AddCommand(divert.Create(ctx))
 	return cmd
 }

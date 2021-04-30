@@ -47,7 +47,7 @@ func CreateDev(ctx context.Context, dev *model.Dev, c *kubernetes.Clientset) err
 }
 
 //Create creates a k8s service
-func Create(ctx context.Context, s *apiv1.Service, c *kubernetes.Clientset) error {
+func Create(ctx context.Context, s *apiv1.Service, c kubernetes.Interface) error {
 	old, err := Get(ctx, s.Name, s.Namespace, c)
 	if err != nil && !strings.Contains(err.Error(), "not found") {
 		return fmt.Errorf("error getting kubernetes service: %s", err)
@@ -76,12 +76,12 @@ func Create(ctx context.Context, s *apiv1.Service, c *kubernetes.Clientset) erro
 }
 
 //DestroyDev destroys the default service for a development container
-func DestroyDev(ctx context.Context, dev *model.Dev, c *kubernetes.Clientset) error {
+func DestroyDev(ctx context.Context, dev *model.Dev, c kubernetes.Interface) error {
 	return Destroy(ctx, dev.Name, dev.Namespace, c)
 }
 
 //Destroy destroys a k8s service
-func Destroy(ctx context.Context, name, namespace string, c *kubernetes.Clientset) error {
+func Destroy(ctx context.Context, name, namespace string, c kubernetes.Interface) error {
 	log.Infof("deleting service '%s'", name)
 	err := c.CoreV1().Services(namespace).Delete(ctx, name, metav1.DeleteOptions{})
 	if err != nil {
